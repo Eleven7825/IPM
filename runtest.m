@@ -10,11 +10,14 @@ if ~exist('n','var');     n = 30;                             end
 if ~exist('m','var');        m= 800;                          end
 if ~exist('e','var');        e = 0.005;                       end
 if ~exist('e1','var');        e1 = 0.1;                       end
-if ~exist('e2','var');        e2 = 0.07;                       end
+if ~exist('e2','var');        e2 = 0.07;                      end
 if ~exist('e3','var');        e3 = 0.03;                      end
+if ~exist('e4','var');        e4 = 0.01;                      end
 if ~exist('seed','var');        seed = 3;                     end
 if ~exist('findn','var');     findn= 3;                       end
 if ~exist('repeat','var');     repeat= 3;                     end
+if ~exist('scalers','var');   scalers = [0.3,0.01];            end  
+    
 more off
 
 fprintf('Opening file "Report_1.txt"... ');
@@ -46,9 +49,8 @@ report = [report, sprintf('repeat is the searching rounds executed in the second
 report = [report, sprintf('mu is y = (A - mu*I)^(-1) * x in each iteration.\n')];
 report = [report, sprintf('Change seed to 0 if you want the program to generate the random matrix.\n')];
 report = [report, sprintf('e is the allowed error\nERR = || |x_(k+1) - x_(k)| ||_infty in each iteration.\n')];
-report = [report, sprintf('The program considered |lambda1-lambda2|/|lambda1|>e1 as two distinct eigenvalues.\n')];
+report = [report, sprintf('Cosider lambda1 and lambda2 as two different eigenvalues if |lambda1-lambda2|/|lambda1|>e1.\n')];
 report = [report, sprintf('Parameters can be changed as variables in the workspace.\n\n')];
-
 
 rand('twister',seed)
 fprintf('Generating a random symmetric n by n matrix...')
@@ -59,7 +61,7 @@ x0 = (1:n)';
 fprintf('done!\n')
 
 fprintf('Using Power Method to find the largest eigenvalue...')
-largest_eig = PM(A,A(:,1),e,m);
+[largest_eig, ~,~] = PM(A,A(:,1),e,m);
 fprintf('done!\n');
 
 fprintf('Using Inverse Power Method to find the smallest eigenvalue...')
@@ -80,8 +82,9 @@ fprintf('done!\n')
 fprintf('Finding %d largest eigenvalues using IPM ...', findn)
 step_len = (2*largest_eig/n-smallest_eig)/(n);
 eigenlist = [largest_eig];
+
 j = 0;
-mu_2 = 2*largest_eig/n;
+mu_2 = 2*largest_eig / n;
 eigen = largest_eig;
 
 while length(eigenlist) < findn 
@@ -118,47 +121,80 @@ while length(eigenlist) < findn
     
     if all(dist_list>e1)
         eigenlist = [eigenlist,eigen];
-    else
-        continue
-    end
-    
+    end   
 end
+
+veclist = [];
+for i = 1:length(eigenlist)
+    eigen = eigenlist(i);
+    [new_eigen,vec,~] = IPM(A, eigen, A(:,1), m, e);
+    veclist = [veclist,vec];
+    eigenlist(i) = new_eigen;
+end
+mixm = [eigenlist;veclist];
+% mixm = mixm';
+% mixm = flip(sortrows(mixm,1));
+% mixm = mixm';
+
 report = [report, "\n"];
 fprintf('\ndone!\n')
 report = [report, sprintf('The %d largest eigenvalues using Inverse Power Method: \n',findn)];
 fprintf('Checking if there are other eigenvalues between those %d eigenvalues...',findn);
 
+% The process for the second loop
 for j = 1 : repeat
-    eigenlist = flip(sort(eigenlist));
+    veclist = mixm(2:end,:);
+    
     for itval = 1: length(eigenlist)-1
-        steplen = eigenlist(itval)-eigenlist(itval+1);
-        
+
+        for scaler = scalers
+            steplen = eigenlist(itval)-eigenlist(itval+1);
+            
         if itval<3
             tol = e2 * steplen;
         else 
             tol = e3 * steplen;
         end
         
-        miditval = 0.3*steplen;
+        miditval = scaler*steplen;
         leftp = eigenlist(itval)-miditval;
-        leftconv = IPM(A,leftp,A(:,1),m,e);
+        [leftconv,leftvec,k1] = IPM(A,leftp,A(:,1),m,e);
         rightp = eigenlist(itval+1) + miditval;
-        rightconv = IPM(A,rightp,A(:,1),m,e);
-        if rightconv-eigenlist(itval+1)>tol
-            eigenlist = [eigenlist, rightconv];
-        elseif eigenlist(itval)-leftconv > tol
-            eigenlist = [eigenlist,leftconv];
+        [rightconv,rightvec,k2] = IPM(A,rightp,A(:,1),m,e);
+        
+        vec1 = veclist(:,itval);
+        vec2 = veclist(:,itval+1);
+            if (rightconv-eigenlist(itval+1) > tol) ||  all([angle(rightvec,vec1),angle(rightvec,vec2)]<e4) 
+                rcheck = true;
+                mixv = [rightconv;rightvec];
+                mixm = [mixm,mixv];
+                break
+            elseif (eigenlist(itval)-leftconv > tol) || all([angle(leftvec,vec1),angle(leftvec,vec2)]<e4) 
+                lcheck = true;
+                mixv = [leftconv;leftvec];
+                mixm = [mixm,mixv];
+                break
+            end
         end
     end
-    eigenlist = flip(sort(eigenlist));
     
-    if length(eigenlist) < findn 
+    mixm = mixm';
+    mixm = flip(sortrows(mixm,1));
+    mixm = mixm';    
+    
+    if length(mixm(1,:)) < findn 
       continue
     else
-      eigenlist = eigenlist(1:findn);
+      mixm = mixm(:, 1:findn);
     end
+    eigenlist = mixm(1,:);
 end
+
 fprintf('done!\n')
+
+if length(eigenlist)>findn
+     eigenlist = mixm(1,1:findn);
+end
 
 for display = eigenlist(1:length(eigenlist))
       report = [report, num2str(display),' '];
@@ -171,6 +207,7 @@ fprintf('Writing into the file "Report_1.txt", closing the file...')
 for line=report(1:end)
     fprintf(fid,line);
 end
+
 fclose(fid);
 fprintf('done!\n')
 fprintf('Bye!\n')
