@@ -165,12 +165,12 @@ for j = 1 : repeat
         vec1 = veclist(:,itval);
         vec2 = veclist(:,itval+1);
             if (rightconv-eigenlist(itval+1) > tol) ||  all([angle(rightvec,vec1),angle(rightvec,vec2)]<e4) 
-                rcheck = true;
+                % rcheck = true;
                 mixv = [rightconv;rightvec];
                 mixm = [mixm,mixv];
                 break
             elseif (eigenlist(itval)-leftconv > tol) || all([angle(leftvec,vec1),angle(leftvec,vec2)]<e4) 
-                lcheck = true;
+                % lcheck = true;
                 mixv = [leftconv;leftvec];
                 mixm = [mixm,mixv];
                 break
