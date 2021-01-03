@@ -15,8 +15,7 @@ if ~exist('e3','var');        e3 = 0.03;                      end
 if ~exist('e4','var');        e4 = 0.01;                      end
 if ~exist('seed','var');        seed = 3;                     end
 if ~exist('findn','var');     findn= 3;                       end
-if ~exist('repeat','var');     repeat= 3;                     end
-if ~exist('scalers','var');   scalers = [0.3,0.01];            end  
+if ~exist('scalers','var');   scalers = [0.3,0.01];      end  
     
 more off
 
@@ -41,11 +40,9 @@ report = [report, sprintf('e2 = %f\n',e2)];
 report = [report, sprintf('e3 = %f\n',e3)];
 report = [report, sprintf('seed = %f\n',seed)];
 report = [report, sprintf('findn = %d\n',findn)];
-report = [report, sprintf('repeat = %f\n',repeat)];
 report = [report, sprintf('You can check initial vector x0 in workspace.\n\n')];
 report = [report, sprintf('n is the size of the matrix.\n')];
 report = [report, sprintf('m is the maximum iteration rounds.\n')];
-report = [report, sprintf('repeat is the searching rounds executed in the second round.\n')];
 report = [report, sprintf('mu is y = (A - mu*I)^(-1) * x in each iteration.\n')];
 report = [report, sprintf('Change seed to 0 if you want the program to generate the random matrix.\n')];
 report = [report, sprintf('e is the allowed error\nERR = || |x_(k+1) - x_(k)| ||_infty in each iteration.\n')];
@@ -142,37 +139,47 @@ report = [report, sprintf('The %d largest eigenvalues using Inverse Power Method
 fprintf('Checking if there are other eigenvalues between those %d eigenvalues...',findn);
 
 % The process for the second loop
-for j = 1 : repeat
-    veclist = mixm(2:end,:);
+findnew = 1;
+round = 0;
+while findnew == 1
+    round = round+1;
     
+    if round>4
+        break
+    end
+    
+    veclist = mixm(2:end,:);
+    findnew = 0;
     for itval = 1: length(eigenlist)-1
-
+        
         for scaler = scalers
             steplen = eigenlist(itval)-eigenlist(itval+1);
             
-        if itval<3
-            tol = e2 * steplen;
-        else 
-            tol = e3 * steplen;
-        end
-        
-        miditval = scaler*steplen;
-        leftp = eigenlist(itval)-miditval;
-        [leftconv,leftvec,k1] = IPM(A,leftp,A(:,1),m,e);
-        rightp = eigenlist(itval+1) + miditval;
-        [rightconv,rightvec,k2] = IPM(A,rightp,A(:,1),m,e);
-        
-        vec1 = veclist(:,itval);
-        vec2 = veclist(:,itval+1);
-            if (rightconv-eigenlist(itval+1) > tol) ||  all([angle(rightvec,vec1),angle(rightvec,vec2)]<e4) 
+            if itval<3
+                tol = e2 * steplen;
+            else
+                tol = e3 * steplen;
+            end
+            
+            miditval = scaler*steplen;
+            leftp = eigenlist(itval)-miditval;
+            [leftconv,leftvec,k1] = IPM(A,leftp,A(:,1),m,e);
+            rightp = eigenlist(itval+1) + miditval;
+            [rightconv,rightvec,k2] = IPM(A,rightp,A(:,1),m,e);
+            
+            vec1 = veclist(:,itval);
+            vec2 = veclist(:,itval+1);
+            if (rightconv-eigenlist(itval+1) > tol) ||  all([angle(rightvec,vec1),angle(rightvec,vec2)]<e4)
                 % rcheck = true;
                 mixv = [rightconv;rightvec];
                 mixm = [mixm,mixv];
+                findnew = 1;
                 break
-            elseif (eigenlist(itval)-leftconv > tol) || all([angle(leftvec,vec1),angle(leftvec,vec2)]<e4) 
+            elseif (eigenlist(itval)-leftconv > tol) || all([angle(leftvec,vec1),angle(leftvec,vec2)]<e4)
                 % lcheck = true;
                 mixv = [leftconv;leftvec];
                 mixm = [mixm,mixv];
+                findnew = 1;
                 break
             end
         end
@@ -180,12 +187,12 @@ for j = 1 : repeat
     
     mixm = mixm';
     mixm = flip(sortrows(mixm,1));
-    mixm = mixm';    
+    mixm = mixm';
     
-    if length(mixm(1,:)) < findn 
-      continue
+    if length(mixm(1,:)) < findn
+        continue
     else
-      mixm = mixm(:, 1:findn);
+        mixm = mixm(:, 1:findn);
     end
     eigenlist = mixm(1,:);
 end
